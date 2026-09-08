@@ -1,202 +1,279 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Trajet CNPE Cruas</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#FF6B00">
-    <style>
-        :root {
-            --bg-color: #f4f7f6;
-            --primary: #FF6B00;
-            --card-bg: #ffffff;
-            --text-main: #333333;
+!DOCTYPE html
+html lang=fr
+head
+    meta charset=UTF-8
+    meta name=viewport content=width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no
+    titleTrajet CNPE Cruastitle
+    link rel=manifest href=manifest.json
+    meta name=theme-color content=#FF6B00
+    style
+        root {
+            --bg-color #f4f7f6;
+            --primary #FF6B00;
+            --primary-dark #e65c00;
+            --card-bg #ffffff;
+            --text-main #333333;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; display: flex; flex-direction: column; align-items: center; }
+         { box-sizing border-box; margin 0; padding 0; font-family 'Segoe UI', sans-serif; }
+        body { background-color var(--bg-color); color var(--text-main); padding 15px; display flex; flex-direction column; align-items center; }
         
         .card {
-            background-color: var(--card-bg);
-            width: 100%;
-            max-width: 400px;
-            border-radius: 16px;
-            padding: 25px 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+            background-color var(--card-bg);
+            width 100%;
+            max-width 400px;
+            border-radius 16px;
+            padding 20px;
+            box-shadow 0 5px 15px rgba(0,0,0,0.05);
+            margin-bottom 20px;
         }
 
-        h1 { text-align: center; font-size: 20px; margin-bottom: 20px; }
+         Toggle Aller  Retour 
+        .trip-toggle {
+            display flex;
+            background-color #f0f0f0;
+            border-radius 30px;
+            margin-bottom 20px;
+            overflow hidden;
+        }
+        .trip-toggle button {
+            flex 1;
+            padding 12px;
+            border none;
+            background transparent;
+            font-size 15px;
+            font-weight bold;
+            color #666;
+            cursor pointer;
+            transition 0.3s;
+        }
+        .trip-toggle button.active {
+            background-color var(--primary);
+            color white;
+            box-shadow 0 2px 5px rgba(0,0,0,0.1);
+        }
 
-        .time-display { font-size: 42px; font-weight: bold; color: var(--primary); text-align: center; line-height: 1; margin-bottom: 5px; }
-        .distance-display { font-size: 15px; color: #666; text-align: center; margin-bottom: 20px; }
+        h1 { text-align center; font-size 18px; margin-bottom 15px; color #444; }
 
-        /* Design de la Timeline (les étapes) */
+        .time-display { font-size 38px; font-weight bold; color var(--primary); text-align center; line-height 1; margin-bottom 5px; }
+        .distance-display { font-size 14px; color #666; text-align center; margin-bottom 20px; }
+
+         Design de la Timeline (les étapes) 
         .timeline {
-            margin-top: 10px;
-            padding-left: 20px;
-            border-left: 3px solid #e0e0e0;
-            position: relative;
+            margin-top 10px;
+            padding-left 20px;
+            border-left 3px solid #e0e0e0;
+            position relative;
         }
         .step {
-            position: relative;
-            margin-bottom: 25px;
+            position relative;
+            margin-bottom 25px;
         }
-        .step:last-child { margin-bottom: 0; }
-        .step::before {
-            content: ''; position: absolute;
-            left: -27px; top: 2px;
-            width: 12px; height: 12px;
-            border-radius: 50%;
-            background-color: white;
-            border: 3px solid var(--primary);
+        .steplast-child { margin-bottom 0; border-left none; }
+        .stepbefore {
+            content ''; position absolute;
+            left -27px; top 2px;
+            width 12px; height 12px;
+            border-radius 50%;
+            background-color white;
+            border 3px solid var(--primary);
         }
-        .step-time { font-weight: bold; font-size: 14px; color: var(--text-main); }
-        .step-info { font-size: 13px; color: #555; margin-top: 4px; }
         
-        /* Badges de trafic */
-        .badge {
-            display: inline-block; padding: 4px 10px; border-radius: 12px;
-            font-size: 12px; font-weight: bold; margin-top: 6px;
+        .step-time { font-weight bold; font-size 15px; color var(--text-main); }
+        .step-info { font-size 13px; color #555; margin-top 4px; }
+        
+         Mise en évidence de l'arrivée 
+        .step.arrival-stepbefore {
+            width 16px; height 16px; left -29px; top 4px;
+            background-color var(--primary);
         }
-        .badge-fluid { background: #e6f4ea; color: #137333; }
-        .badge-slow { background: #fef7e0; color: #b06000; }
-        .badge-jam { background: #fce8e6; color: #c5221f; }
-        .badge-neutral { background: #f1f3f4; color: #5f6368; }
+        .highlight-time {
+            font-size 24px;
+            color var(--primary);
+            background-color #fff3e6;
+            padding 2px 8px;
+            border-radius 6px;
+            display inline-block;
+        }
+        .highlight-text { font-size 15px; color #000; font-weight bold; }
+        
+         Badges de trafic 
+        .badge {
+            display inline-block; padding 4px 10px; border-radius 12px;
+            font-size 12px; font-weight bold; margin-top 6px;
+        }
+        .badge-fluid { background #e6f4ea; color #137333; }
+        .badge-slow { background #fef7e0; color #b06000; }
+        .badge-jam { background #fce8e6; color #c5221f; }
+        .badge-neutral { background #f1f3f4; color #5f6368; }
 
         .btn-refresh {
-            background-color: var(--primary); color: white; border: none;
-            padding: 15px 30px; font-size: 16px; border-radius: 30px;
-            cursor: pointer; font-weight: bold; width: 100%; max-width: 400px;
-            box-shadow: 0 4px 10px rgba(255, 107, 0, 0.3);
+            background-color var(--primary); color white; border none;
+            padding 15px 30px; font-size 16px; border-radius 30px;
+            cursor pointer; font-weight bold; width 100%; max-width 400px;
+            box-shadow 0 4px 10px rgba(255, 107, 0, 0.3);
         }
-    </style>
-</head>
-<body>
+    style
+head
+body
 
-    <div class="card">
-        <h1>Trajet vers le Travail</h1>
+    div class=card
         
-        <div id="loading" style="text-align: center; color: #666;">Calcul de l'itinéraire...</div>
+        div class=trip-toggle
+            button id=btn-aller class=active onclick=setTripDirection(false)🏠 ➡️ 🏭 Allerbutton
+            button id=btn-retour onclick=setTripDirection(true)🏭 ➡️ 🏠 Retourbutton
+        div
+
+        h1 id=trip-titleTrajet vers le Travailh1
         
-        <div id="result" style="display: none;">
-            <div class="time-display" id="time">-- min</div>
-            <div class="distance-display" id="distance">-- km</div>
+        div id=loading style=text-align center; color #666; padding 20px 0;Calcul de l'itinéraire...div
+        
+        div id=result style=display none;
+            div class=time-display id=time-- mindiv
+            div class=distance-display id=distance-- kmdiv
             
-            <div class="timeline" id="timeline-container">
-                <!-- Les étapes de 5 mins apparaîtront ici -->
-            </div>
-        </div>
-    </div>
+            div class=timeline id=timeline-container
+                !-- Les étapes apparaîtront ici --
+            div
+        div
+    div
 
-    <button class="btn-refresh" onclick="fetchRoute()">🔄 Actualiser le trafic</button>
+    button class=btn-refresh onclick=fetchRoute()🔄 Actualiser l'heurebutton
 
-    <script>
-        // ==========================================
-        // 🔑 OPTIONNEL : TA CLÉ API TOMTOM (Trafic Live)
-        // Laisse les guillemets vides pour le Mode Standard.
-        // ==========================================
-        const tomtomApiKey = "cYzZ5Fc2BuFbsd3rwx9UB5Gmhrgpbl2G"; 
+    script
+         ==========================================
+         🔑 OPTIONNEL  TA CLÉ API TOMTOM (Trafic Live)
+         Laisse les guillemets vides pour le Mode Standard.
+         ==========================================
+        const tomtomApiKey = ; 
 
-        // Coordonnées GPS
-        const homeLat = 44.566, homeLon = 4.755; // St Lazare
-        const workLat = 44.633, workLon = 4.756; // CNPE Cruas
+         Coordonnées GPS
+        const homeLat = 44.566, homeLon = 4.755;  St Lazare
+        const workLat = 44.633, workLon = 4.756;  CNPE Cruas
+        
+        let isReturnTrip = false;  Par défaut  Aller
+
+        function setTripDirection(isReturn) {
+            isReturnTrip = isReturn;
+            document.getElementById('btn-aller').classList.toggle('active', !isReturn);
+            document.getElementById('btn-retour').classList.toggle('active', isReturn);
+            document.getElementById('trip-title').innerText = isReturn  Trajet vers le Domicile  Trajet vers le Travail;
+            fetchRoute();
+        }
+
+         Fonction pour formater l'heure (ex 07h15)
+        function formatTime(date) {
+            const h = date.getHours().toString().padStart(2, '0');
+            const m = date.getMinutes().toString().padStart(2, '0');
+            return `${h}h${m}`;
+        }
 
         async function fetchRoute() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
 
+            const startLat = isReturnTrip  workLat  homeLat;
+            const startLon = isReturnTrip  workLon  homeLon;
+            const endLat = isReturnTrip  homeLat  workLat;
+            const endLon = isReturnTrip  homeLon  workLon;
+
             try {
                 let totalMin = 0;
                 let distanceKm = 0;
-                let delayMin = 0; // Temps de retard à cause du trafic
+                let delayMin = 0; 
 
-                if (tomtomApiKey !== "") {
-                    // MOTEUR 1 : TOMTOM (Avec Trafic Réel)
-                    const url = `https://api.tomtom.com/routing/1/calculateRoute/${homeLat},${homeLon}:${workLat},${workLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all`;
+                if (tomtomApiKey !== ) {
+                     TOMTOM
+                    const url = `httpsapi.tomtom.comrouting1calculateRoute${startLat},${startLon}${endLat},${endLon}jsonkey=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all`;
                     const res = await fetch(url);
                     const data = await res.json();
                     const summary = data.routes[0].summary;
                     
-                    totalMin = Math.ceil(summary.travelTimeInSeconds / 60);
-                    distanceKm = (summary.lengthInMeters / 1000).toFixed(1);
-                    
-                    const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds / 60);
+                    totalMin = Math.ceil(summary.travelTimeInSeconds  60);
+                    distanceKm = (summary.lengthInMeters  1000).toFixed(1);
+                    const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds  60);
                     delayMin = totalMin - noTrafficMin;
                 } else {
-                    // MOTEUR 2 : OSRM (Gratuit, sans trafic réel)
-                    const url = `https://router.project-osrm.org/route/v1/driving/${homeLon},${homeLat};${workLon},${workLat}?overview=false`;
+                     OSRM
+                    const url = `httpsrouter.project-osrm.orgroutev1driving${startLon},${startLat};${endLon},${endLat}overview=false`;
                     const res = await fetch(url);
                     const data = await res.json();
                     
-                    totalMin = Math.ceil(data.routes[0].duration / 60);
-                    distanceKm = (data.routes[0].distance / 1000).toFixed(1);
-                    delayMin = 0; // OSRM ne connaît pas les bouchons
+                    totalMin = Math.ceil(data.routes[0].duration  60);
+                    distanceKm = (data.routes[0].distance  1000).toFixed(1);
+                    delayMin = 0; 
                 }
 
-                // Affichage global
-                document.getElementById('time').innerText = totalMin + " min";
-                document.getElementById('distance').innerText = distanceKm + " km" + (tomtomApiKey ? " (Trafic Live)" : "");
+                document.getElementById('time').innerText = totalMin +  min;
+                document.getElementById('distance').innerText = distanceKm +  km + (tomtomApiKey   (Trafic Live)  );
 
-                // Génération des étapes (toutes les 5 minutes)
                 generateSteps(totalMin, delayMin);
 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('result').style.display = 'block';
 
             } catch (error) {
-                document.getElementById('loading').innerText = "Erreur de connexion réseau ❌";
+                document.getElementById('loading').innerText = Erreur de connexion réseau ❌;
             }
         }
 
         function generateSteps(totalMin, delayMin) {
             const container = document.getElementById('timeline-container');
+            const now = new Date();
+            
+            const startLabel = isReturnTrip  🏭 Départ  CNPE Cruas  🏠 Départ  Av. Saint-Lazare;
+            const endLabel = isReturnTrip  🏠 Arrivée  Av. Saint-Lazare  🏭 Arrivée  CNPE Cruas;
+
             let html = `
-                <div class="step">
-                    <div class="step-time">0 min</div>
-                    <div class="step-info">🏠 Départ : Av. Saint-Lazare</div>
-                </div>`;
+                div class=step
+                    div class=step-time${formatTime(now)}div
+                    div class=step-info${startLabel}div
+                div`;
 
-            const nbEtapes = Math.floor(totalMin / 5);
+            const nbEtapes = Math.floor(totalMin  5);
 
-            for (let i = 1; i <= nbEtapes; i++) {
-                const elapsed = i * 5;
-                let badge = "";
+             Étapes intermédiaires
+            for (let i = 1; i = nbEtapes; i++) {
+                const elapsed = i  5;
+                 Si la dernière étape tombe pile sur le total (ou presque), on la saute pour ne garder que l'arrivée
+                if (totalMin - elapsed  2) continue; 
+                
+                const stepTime = new Date(now.getTime() + elapsed  60000);  Ajoute les minutes
+                let badge = ;
 
-                // Logique d'affichage du trafic (si TomTom est activé)
-                if (tomtomApiKey !== "") {
-                    // S'il y a du retard, on l'affiche sur les étapes
-                    if (delayMin >= 3 && i === Math.ceil(nbEtapes / 2)) {
-                        badge = `<span class="badge badge-jam">🔴 Bouchon (+${delayMin}min)</span>`;
-                    } else if (delayMin > 0) {
-                        badge = `<span class="badge badge-slow">🟠 Trafic Ralenti</span>`;
+                if (tomtomApiKey !== ) {
+                    if (delayMin = 3 && i === Math.ceil(nbEtapes  2)) {
+                        badge = `span class=badge badge-jam🔴 Bouchon (+${delayMin}min)span`;
+                    } else if (delayMin  0) {
+                        badge = `span class=badge badge-slow🟠 Trafic Ralentispan`;
                     } else {
-                        badge = `<span class="badge badge-fluid">🟢 Fluide</span>`;
+                        badge = `span class=badge badge-fluid🟢 Fluidespan`;
                     }
                 } else {
-                    badge = `<span class="badge badge-neutral">⚪ Normal (Mode Sans Trafic)</span>`;
+                    badge = `span class=badge badge-neutral⚪ Route fluidespan`;
                 }
 
                 html += `
-                <div class="step">
-                    <div class="step-time">+ ${elapsed} min</div>
-                    <div class="step-info">Point de passage <br> ${badge}</div>
-                </div>`;
+                div class=step
+                    div class=step-time${formatTime(stepTime)}div
+                    div class=step-infoPoint de passage br ${badge}div
+                div`;
             }
 
+             Étape finale (Arrivée)
+            const arrivalTime = new Date(now.getTime() + totalMin  60000);
             html += `
-                <div class="step">
-                    <div class="step-time">+ ${totalMin} min</div>
-                    <div class="step-info">🏭 Arrivée : CNPE Cruas</div>
-                </div>`;
+                div class=step arrival-step
+                    div class=step-time highlight-time${formatTime(arrivalTime)}div
+                    div class=step-info highlight-text${endLabel}div
+                div`;
 
             container.innerHTML = html;
         }
 
+         Lancement initial
         fetchRoute();
         
-        // PWA Installation
-        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); }); }
-    </script>
-</body>
-</html>
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () = { navigator.serviceWorker.register('sw.js'); }); }
+    script
+body
+html
