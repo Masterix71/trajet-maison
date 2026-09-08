@@ -79,7 +79,7 @@
         
         .step-time { font-weight: bold; font-size: 15px; color: var(--text-main); }
         .step-info { font-size: 14px; color: #333; margin-top: 4px; }
-        .step-name { font-weight: 500; display: block; margin-bottom: 3px; }
+        .step-name { font-weight: 500; display: block; margin-bottom: 3px; color: #111; }
         
         .step.arrival-step::before {
             width: 16px; height: 16px; left: -29px; top: 4px;
@@ -159,6 +159,22 @@
             return `${h}h${m}`;
         }
 
+        // Fonction pour trouver le nom de la route à la minute X
+        function getRoadNameAt(targetMinutes, apiSteps) {
+            if (!apiSteps || apiSteps.length === 0) return "Sur l'itinéraire";
+            
+            const targetSeconds = targetMinutes * 60;
+            let accumulated = 0;
+            
+            for (let step of apiSteps) {
+                accumulated += step.duration;
+                if (accumulated >= targetSeconds) {
+                    return step.name && step.name.trim() !== "" ? step.name : "Route principale (D86)";
+                }
+            }
+            return apiSteps[apiSteps.length - 1].name || "Approche finale";
+        }
+
         async function fetchRoute() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
@@ -172,32 +188,50 @@
                 let totalMin = 0;
                 let distanceKm = 0;
                 let delayMin = 0;
+                let apiSteps = []; // Stockera les vrais noms de rues avec leur durée
 
                 if (tomtomApiKey !== "") {
-                    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startLat},${startLon}:${endLat},${endLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all`;
+                    // TomTom: On demande les instructions de navigation (instructionsType=text)
+                    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startLat},${startLon}:${endLat},${endLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all&instructionsType=text&language=fr-FR`;
                     const res = await fetch(url);
                     const data = await res.json();
                     const summary = data.routes[0].summary;
                     
                     totalMin = Math.ceil(summary.travelTimeInSeconds / 60);
                     distanceKm = (summary.lengthInMeters / 1000).toFixed(1);
-                    
                     const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds / 60);
                     delayMin = totalMin - noTrafficMin;
+
+                    // Extraction des vraies routes
+                    if (data.routes[0].guidance && data.routes[0].guidance.instructions) {
+                        apiSteps = data.routes[0].guidance.instructions.map(inst => ({
+                            name: inst.street || "",
+                            duration: inst.travelTimeInSeconds || 0
+                        }));
+                    }
                 } else {
-                    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
+                    // OSRM: On demande le détail des étapes (steps=true)
+                    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false&steps=true`;
                     const res = await fetch(url);
                     const data = await res.json();
                     
                     totalMin = Math.ceil(data.routes[0].duration / 60);
                     distanceKm = (data.routes[0].distance / 1000).toFixed(1);
                     delayMin = 0; 
+
+                    // Extraction des vraies routes
+                    if (data.routes[0].legs && data.routes[0].legs[0].steps) {
+                        apiSteps = data.routes[0].legs[0].steps.map(step => ({
+                            name: step.name || "",
+                            duration: step.duration || 0
+                        }));
+                    }
                 }
 
                 document.getElementById('time').innerText = totalMin + " min";
                 document.getElementById('distance').innerText = distanceKm + " km" + (tomtomApiKey ? " (Trafic Live)" : "");
 
-                generateSteps(totalMin, delayMin);
+                generateSteps(totalMin, delayMin, apiSteps);
 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('result').style.display = 'block';
@@ -207,18 +241,12 @@
             }
         }
 
-        function generateSteps(totalMin, delayMin) {
+        function generateSteps(totalMin, delayMin, apiSteps) {
             const container = document.getElementById('timeline-container');
             const now = new Date();
             
             const startLabel = isReturnTrip ? "🏭 Départ : CNPE de Cruas" : "🏠 Départ : Avenue Saint-Lazare";
             const endLabel = isReturnTrip ? "🏠 Arrivée : Avenue Saint-Lazare" : "🏭 Arrivée : CNPE de Cruas";
-
-            // Noms de lieux réels sur ce trajet spécifique
-            const waypointsAller = ["Traversée du Rhône", "Passage à Rochemaure", "Traversée de Meysse", "Approche de Cruas"];
-            const waypointsRetour = ["Traversée de Meysse", "Passage à Rochemaure", "Traversée du Rhône", "Entrée dans Montélimar"];
-            
-            const currentWaypoints = isReturnTrip ? waypointsRetour : waypointsAller;
 
             let html = `
                 <div class="step">
@@ -234,8 +262,8 @@
                 
                 const stepTime = new Date(now.getTime() + elapsed * 60000);
                 
-                // On récupère le nom du lieu, ou on met un nom générique s'il y a plus d'étapes que prévu (ex: gros bouchon)
-                const locationName = currentWaypoints[i - 1] || "En cours de trajet...";
+                // 🔥 La magie opère ici : on récupère la VRAIE rue à ce moment précis du trajet
+                const locationName = getRoadNameAt(elapsed, apiSteps);
                 
                 let badge = "";
 
