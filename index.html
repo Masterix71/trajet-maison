@@ -78,7 +78,8 @@
         }
         
         .step-time { font-weight: bold; font-size: 15px; color: var(--text-main); }
-        .step-info { font-size: 13px; color: #555; margin-top: 4px; }
+        .step-info { font-size: 14px; color: #333; margin-top: 4px; }
+        .step-name { font-weight: 500; display: block; margin-bottom: 3px; }
         
         .step.arrival-step::before {
             width: 16px; height: 16px; left: -29px; top: 4px;
@@ -96,7 +97,7 @@
         
         .badge {
             display: inline-block; padding: 4px 10px; border-radius: 12px;
-            font-size: 12px; font-weight: bold; margin-top: 6px;
+            font-size: 12px; font-weight: bold; margin-top: 2px;
         }
         .badge-fluid { background: #e6f4ea; color: #137333; }
         .badge-slow { background: #fef7e0; color: #b06000; }
@@ -137,15 +138,10 @@
     <button class="btn-refresh" onclick="fetchRoute()">🔄 Actualiser l'heure</button>
 
     <script>
-        // ==========================================
-        // 🔑 OPTIONNEL : TA CLÉ API TOMTOM (Trafic Live)
-        // Mets ta clé entre les guillemets ci-dessous
-        // ==========================================
         const tomtomApiKey = "cYzZ5Fc2BuFbsd3rwx9UB5Gmhrgpbl2G"; 
 
-        // Coordonnées GPS exactes
-        const homeLat = 44.566, homeLon = 4.755; // Avenue Saint-Lazare
-        const workLat = 44.633, workLon = 4.756; // CNPE Cruas
+        const homeLat = 44.566, homeLon = 4.755; 
+        const workLat = 44.633, workLon = 4.756; 
         
         let isReturnTrip = false;
 
@@ -178,7 +174,6 @@
                 let delayMin = 0;
 
                 if (tomtomApiKey !== "") {
-                    // MOTEUR 1 : TOMTOM (Avec Trafic Réel)
                     const url = `https://api.tomtom.com/routing/1/calculateRoute/${startLat},${startLon}:${endLat},${endLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all`;
                     const res = await fetch(url);
                     const data = await res.json();
@@ -190,7 +185,6 @@
                     const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds / 60);
                     delayMin = totalMin - noTrafficMin;
                 } else {
-                    // MOTEUR 2 : OSRM (Gratuit, sans trafic réel)
                     const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
                     const res = await fetch(url);
                     const data = await res.json();
@@ -220,10 +214,16 @@
             const startLabel = isReturnTrip ? "🏭 Départ : CNPE de Cruas" : "🏠 Départ : Avenue Saint-Lazare";
             const endLabel = isReturnTrip ? "🏠 Arrivée : Avenue Saint-Lazare" : "🏭 Arrivée : CNPE de Cruas";
 
+            // Noms de lieux réels sur ce trajet spécifique
+            const waypointsAller = ["Traversée du Rhône", "Passage à Rochemaure", "Traversée de Meysse", "Approche de Cruas"];
+            const waypointsRetour = ["Traversée de Meysse", "Passage à Rochemaure", "Traversée du Rhône", "Entrée dans Montélimar"];
+            
+            const currentWaypoints = isReturnTrip ? waypointsRetour : waypointsAller;
+
             let html = `
                 <div class="step">
                     <div class="step-time">${formatTime(now)}</div>
-                    <div class="step-info">${startLabel}</div>
+                    <div class="step-info"><span class="step-name">${startLabel}</span></div>
                 </div>`;
 
             const nbEtapes = Math.floor(totalMin / 5);
@@ -233,6 +233,10 @@
                 if (totalMin - elapsed < 2) continue; 
                 
                 const stepTime = new Date(now.getTime() + elapsed * 60000);
+                
+                // On récupère le nom du lieu, ou on met un nom générique s'il y a plus d'étapes que prévu (ex: gros bouchon)
+                const locationName = currentWaypoints[i - 1] || "En cours de trajet...";
+                
                 let badge = "";
 
                 if (tomtomApiKey !== "") {
@@ -250,7 +254,10 @@
                 html += `
                 <div class="step">
                     <div class="step-time">${formatTime(stepTime)}</div>
-                    <div class="step-info">Point de passage <br> ${badge}</div>
+                    <div class="step-info">
+                        <span class="step-name">📍 ${locationName}</span> 
+                        ${badge}
+                    </div>
                 </div>`;
             }
 
