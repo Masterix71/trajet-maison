@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Trajet CNPE Cruas</title>
+    <title>Trajet Domicile-Travail - CNPE Cruas</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#FF6B00">
     <style>
@@ -13,9 +13,10 @@
             --primary-dark: #e65c00;
             --card-bg: #ffffff;
             --text-main: #333333;
+            --text-muted: #666666;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding: 15px; display: flex; flex-direction: column; align-items: center; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 15px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
         .card {
             background-color: var(--card-bg);
@@ -27,7 +28,6 @@
             margin-bottom: 20px;
         }
 
-        /* Toggle Aller / Retour */
         .trip-toggle {
             display: flex;
             background-color: #f0f0f0;
@@ -55,9 +55,8 @@
         h1 { text-align: center; font-size: 18px; margin-bottom: 15px; color: #444; }
 
         .time-display { font-size: 38px; font-weight: bold; color: var(--primary); text-align: center; line-height: 1; margin-bottom: 5px; }
-        .distance-display { font-size: 14px; color: #666; text-align: center; margin-bottom: 20px; }
+        .distance-display { font-size: 14px; color: var(--text-muted); text-align: center; margin-bottom: 20px; }
 
-        /* Design de la Timeline (les étapes) */
         .timeline {
             margin-top: 10px;
             padding-left: 20px;
@@ -81,7 +80,6 @@
         .step-time { font-weight: bold; font-size: 15px; color: var(--text-main); }
         .step-info { font-size: 13px; color: #555; margin-top: 4px; }
         
-        /* Mise en évidence de l'arrivée */
         .step.arrival-step::before {
             width: 16px; height: 16px; left: -29px; top: 4px;
             background-color: var(--primary);
@@ -96,14 +94,10 @@
         }
         .highlight-text { font-size: 15px; color: #000; font-weight: bold; }
         
-        /* Badges de trafic */
         .badge {
             display: inline-block; padding: 4px 10px; border-radius: 12px;
             font-size: 12px; font-weight: bold; margin-top: 6px;
         }
-        .badge-fluid { background: #e6f4ea; color: #137333; }
-        .badge-slow { background: #fef7e0; color: #b06000; }
-        .badge-jam { background: #fce8e6; color: #c5221f; }
         .badge-neutral { background: #f1f3f4; color: #5f6368; }
 
         .btn-refresh {
@@ -112,6 +106,7 @@
             cursor: pointer; font-weight: bold; width: 100%; max-width: 400px;
             box-shadow: 0 4px 10px rgba(255, 107, 0, 0.3);
         }
+        .btn-refresh:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -123,7 +118,7 @@
             <button id="btn-retour" onclick="setTripDirection(true)">🏭 ➡️ 🏠 Retour</button>
         </div>
 
-        <h1 id="trip-title">Trajet vers le Travail</h1>
+        <h1 id="trip-title">Trajet vers le CNPE de Cruas</h1>
         
         <div id="loading" style="text-align: center; color: #666; padding: 20px 0;">Calcul de l'itinéraire...</div>
         
@@ -132,7 +127,7 @@
             <div class="distance-display" id="distance">-- km</div>
             
             <div class="timeline" id="timeline-container">
-                <!-- Les étapes apparaîtront ici -->
+                <!-- Les étapes s'afficheront ici -->
             </div>
         </div>
     </div>
@@ -140,27 +135,20 @@
     <button class="btn-refresh" onclick="fetchRoute()">🔄 Actualiser l'heure</button>
 
     <script>
-        // ==========================================
-        // 🔑 OPTIONNEL : TA CLÉ API TOMTOM (Trafic Live)
-        // Laisse les guillemets vides pour le Mode Standard.
-        // ==========================================
-        const tomtomApiKey = "cYzZ5Fc2BuFbsd3rwx9UB5Gmhrgpbl2G"; 
-
-        // Coordonnées GPS
-        const homeLat = 44.566, homeLon = 4.755; // St Lazare
+        // Coordonnées GPS exactes (Longitude, Latitude pour OSRM)
+        const homeLat = 44.566, homeLon = 4.755; // Avenue Saint-Lazare
         const workLat = 44.633, workLon = 4.756; // CNPE Cruas
         
-        let isReturnTrip = false; // Par défaut : Aller
+        let isReturnTrip = false;
 
         function setTripDirection(isReturn) {
             isReturnTrip = isReturn;
             document.getElementById('btn-aller').classList.toggle('active', !isReturn);
             document.getElementById('btn-retour').classList.toggle('active', isReturn);
-            document.getElementById('trip-title').innerText = isReturn ? "Trajet vers le Domicile" : "Trajet vers le Travail";
+            document.getElementById('trip-title').innerText = isReturn ? "Trajet vers l'Avenue Saint-Lazare" : "Trajet vers le CNPE de Cruas";
             fetchRoute();
         }
 
-        // Fonction pour formater l'heure (ex: 07h15)
         function formatTime(date) {
             const h = date.getHours().toString().padStart(2, '0');
             const m = date.getMinutes().toString().padStart(2, '0');
@@ -171,57 +159,44 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
 
-            const startLat = isReturnTrip ? workLat : homeLat;
+            // OSRM attend l'ordre : longitude,latitude
             const startLon = isReturnTrip ? workLon : homeLon;
-            const endLat = isReturnTrip ? homeLat : workLat;
+            const startLat = isReturnTrip ? workLat : homeLat;
             const endLon = isReturnTrip ? homeLon : workLon;
+            const endLat = isReturnTrip ? homeLat : workLat;
+
+            const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
 
             try {
-                let totalMin = 0;
-                let distanceKm = 0;
-                let delayMin = 0; 
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.code === 'Ok') {
+                    const route = data.routes[0];
+                    const totalMin = Math.ceil(route.duration / 60);
+                    const distanceKm = (route.distance / 1000).toFixed(1);
 
-                if (tomtomApiKey !== "") {
-                    // TOMTOM
-                    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startLat},${startLon}:${endLat},${endLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all`;
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    const summary = data.routes[0].summary;
-                    
-                    totalMin = Math.ceil(summary.travelTimeInSeconds / 60);
-                    distanceKm = (summary.lengthInMeters / 1000).toFixed(1);
-                    const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds / 60);
-                    delayMin = totalMin - noTrafficMin;
+                    document.getElementById('time').innerText = totalMin + " min";
+                    document.getElementById('distance').innerText = distanceKm + " km";
+
+                    generateSteps(totalMin);
+
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('result').style.display = 'block';
                 } else {
-                    // OSRM
-                    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    
-                    totalMin = Math.ceil(data.routes[0].duration / 60);
-                    distanceKm = (data.routes[0].distance / 1000).toFixed(1);
-                    delayMin = 0; 
+                    document.getElementById('loading').innerText = "Erreur de calcul d'itinéraire.";
                 }
-
-                document.getElementById('time').innerText = totalMin + " min";
-                document.getElementById('distance').innerText = distanceKm + " km" + (tomtomApiKey ? " (Trafic Live)" : "");
-
-                generateSteps(totalMin, delayMin);
-
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('result').style.display = 'block';
-
             } catch (error) {
-                document.getElementById('loading').innerText = "Erreur de connexion réseau ❌";
+                document.getElementById('loading').innerText = "Erreur de réseau ❌";
             }
         }
 
-        function generateSteps(totalMin, delayMin) {
+        function generateSteps(totalMin) {
             const container = document.getElementById('timeline-container');
             const now = new Date();
             
-            const startLabel = isReturnTrip ? "🏭 Départ : CNPE Cruas" : "🏠 Départ : Av. Saint-Lazare";
-            const endLabel = isReturnTrip ? "🏠 Arrivée : Av. Saint-Lazare" : "🏭 Arrivée : CNPE Cruas";
+            const startLabel = isReturnTrip ? "🏭 Départ : CNPE de Cruas" : "🏠 Départ : Avenue Saint-Lazare";
+            const endLabel = isReturnTrip ? "🏠 Arrivée : Avenue Saint-Lazare" : "🏭 Arrivée : CNPE de Cruas";
 
             let html = `
                 <div class="step">
@@ -231,35 +206,19 @@
 
             const nbEtapes = Math.floor(totalMin / 5);
 
-            // Étapes intermédiaires
             for (let i = 1; i <= nbEtapes; i++) {
                 const elapsed = i * 5;
-                // Si la dernière étape tombe pile sur le total (ou presque), on la saute pour ne garder que l'arrivée
                 if (totalMin - elapsed < 2) continue; 
                 
-                const stepTime = new Date(now.getTime() + elapsed * 60000); // Ajoute les minutes
-                let badge = "";
-
-                if (tomtomApiKey !== "") {
-                    if (delayMin >= 3 && i === Math.ceil(nbEtapes / 2)) {
-                        badge = `<span class="badge badge-jam">🔴 Bouchon (+${delayMin}min)</span>`;
-                    } else if (delayMin > 0) {
-                        badge = `<span class="badge badge-slow">🟠 Trafic Ralenti</span>`;
-                    } else {
-                        badge = `<span class="badge badge-fluid">🟢 Fluide</span>`;
-                    }
-                } else {
-                    badge = `<span class="badge badge-neutral">⚪ Route fluide</span>`;
-                }
+                const stepTime = new Date(now.getTime() + elapsed * 60000);
 
                 html += `
                 <div class="step">
                     <div class="step-time">${formatTime(stepTime)}</div>
-                    <div class="step-info">Point de passage <br> ${badge}</div>
+                    <div class="step-info">Point de passage <br> <span class="badge badge-neutral">⚪ Route fluide</span></div>
                 </div>`;
             }
 
-            // Étape finale (Arrivée)
             const arrivalTime = new Date(now.getTime() + totalMin * 60000);
             html += `
                 <div class="step arrival-step">
@@ -270,10 +229,13 @@
             container.innerHTML = html;
         }
 
-        // Lancement initial
         fetchRoute();
         
-        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); }); }
+        if ('serviceWorker' in navigator) { 
+            window.addEventListener('load', () => { 
+                navigator.serviceWorker.register('sw.js'); 
+            }); 
+        }
     </script>
 </body>
 </html>
