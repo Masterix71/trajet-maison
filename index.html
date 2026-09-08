@@ -98,6 +98,9 @@
             display: inline-block; padding: 4px 10px; border-radius: 12px;
             font-size: 12px; font-weight: bold; margin-top: 6px;
         }
+        .badge-fluid { background: #e6f4ea; color: #137333; }
+        .badge-slow { background: #fef7e0; color: #b06000; }
+        .badge-jam { background: #fce8e6; color: #c5221f; }
         .badge-neutral { background: #f1f3f4; color: #5f6368; }
 
         .btn-refresh {
@@ -112,7 +115,6 @@
 <body>
 
     <div class="card">
-        
         <div class="trip-toggle">
             <button id="btn-aller" class="active" onclick="setTripDirection(false)">🏠 ➡️ 🏭 Aller</button>
             <button id="btn-retour" onclick="setTripDirection(true)">🏭 ➡️ 🏠 Retour</button>
@@ -135,7 +137,13 @@
     <button class="btn-refresh" onclick="fetchRoute()">🔄 Actualiser l'heure</button>
 
     <script>
-        // Coordonnées GPS exactes (Longitude, Latitude pour OSRM)
+        // ==========================================
+        // 🔑 OPTIONNEL : TA CLÉ API TOMTOM (Trafic Live)
+        // Mets ta clé entre les guillemets ci-dessous
+        // ==========================================
+        const tomtomApiKey = "cYzZ5Fc2BuFbsd3rwx9UB5Gmhrgpbl2G"; 
+
+        // Coordonnées GPS exactes
         const homeLat = 44.566, homeLon = 4.755; // Avenue Saint-Lazare
         const workLat = 44.633, workLon = 4.756; // CNPE Cruas
         
@@ -159,39 +167,53 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
 
-            // OSRM attend l'ordre : longitude,latitude
-            const startLon = isReturnTrip ? workLon : homeLon;
             const startLat = isReturnTrip ? workLat : homeLat;
-            const endLon = isReturnTrip ? homeLon : workLon;
+            const startLon = isReturnTrip ? workLon : homeLon;
             const endLat = isReturnTrip ? homeLat : workLat;
-
-            const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
+            const endLon = isReturnTrip ? homeLon : workLon;
 
             try {
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.code === 'Ok') {
-                    const route = data.routes[0];
-                    const totalMin = Math.ceil(route.duration / 60);
-                    const distanceKm = (route.distance / 1000).toFixed(1);
+                let totalMin = 0;
+                let distanceKm = 0;
+                let delayMin = 0;
 
-                    document.getElementById('time').innerText = totalMin + " min";
-                    document.getElementById('distance').innerText = distanceKm + " km";
-
-                    generateSteps(totalMin);
-
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('result').style.display = 'block';
+                if (tomtomApiKey !== "") {
+                    // MOTEUR 1 : TOMTOM (Avec Trafic Réel)
+                    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startLat},${startLon}:${endLat},${endLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    const summary = data.routes[0].summary;
+                    
+                    totalMin = Math.ceil(summary.travelTimeInSeconds / 60);
+                    distanceKm = (summary.lengthInMeters / 1000).toFixed(1);
+                    
+                    const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds / 60);
+                    delayMin = totalMin - noTrafficMin;
                 } else {
-                    document.getElementById('loading').innerText = "Erreur de calcul d'itinéraire.";
+                    // MOTEUR 2 : OSRM (Gratuit, sans trafic réel)
+                    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    
+                    totalMin = Math.ceil(data.routes[0].duration / 60);
+                    distanceKm = (data.routes[0].distance / 1000).toFixed(1);
+                    delayMin = 0; 
                 }
+
+                document.getElementById('time').innerText = totalMin + " min";
+                document.getElementById('distance').innerText = distanceKm + " km" + (tomtomApiKey ? " (Trafic Live)" : "");
+
+                generateSteps(totalMin, delayMin);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+
             } catch (error) {
-                document.getElementById('loading').innerText = "Erreur de réseau ❌";
+                document.getElementById('loading').innerText = "Erreur de connexion réseau ❌";
             }
         }
 
-        function generateSteps(totalMin) {
+        function generateSteps(totalMin, delayMin) {
             const container = document.getElementById('timeline-container');
             const now = new Date();
             
@@ -211,11 +233,24 @@
                 if (totalMin - elapsed < 2) continue; 
                 
                 const stepTime = new Date(now.getTime() + elapsed * 60000);
+                let badge = "";
+
+                if (tomtomApiKey !== "") {
+                    if (delayMin >= 3 && i === Math.ceil(nbEtapes / 2)) {
+                        badge = `<span class="badge badge-jam">🔴 Bouchon (+${delayMin}min)</span>`;
+                    } else if (delayMin > 0) {
+                        badge = `<span class="badge badge-slow">🟠 Trafic Ralenti</span>`;
+                    } else {
+                        badge = `<span class="badge badge-fluid">🟢 Fluide</span>`;
+                    }
+                } else {
+                    badge = `<span class="badge badge-neutral">⚪ Route fluide</span>`;
+                }
 
                 html += `
                 <div class="step">
                     <div class="step-time">${formatTime(stepTime)}</div>
-                    <div class="step-info">Point de passage <br> <span class="badge badge-neutral">⚪ Route fluide</span></div>
+                    <div class="step-info">Point de passage <br> ${badge}</div>
                 </div>`;
             }
 
