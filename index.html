@@ -10,7 +10,6 @@
         :root {
             --bg-color: #f4f7f6;
             --primary: #FF6B00;
-            --primary-dark: #e65c00;
             --card-bg: #ffffff;
             --text-main: #333333;
             --text-muted: #666666;
@@ -78,8 +77,10 @@
         }
         
         .step-time { font-weight: bold; font-size: 15px; color: var(--text-main); }
-        .step-info { font-size: 14px; color: #333; margin-top: 4px; }
-        .step-name { font-weight: 500; display: block; margin-bottom: 3px; color: #111; }
+        .step-info { margin-top: 4px; }
+        
+        .step-name { font-weight: bold; display: block; color: #222; font-size: 14px; }
+        .step-road { display: block; font-size: 12px; color: #777; margin-bottom: 4px; }
         
         .step.arrival-step::before {
             width: 16px; height: 16px; left: -29px; top: 4px;
@@ -159,20 +160,35 @@
             return `${h}h${m}`;
         }
 
-        // Fonction pour trouver le nom de la route à la minute X
+        // Renvoie le secteur géographique en fonction de l'avancement (%)
+        function getZoneName(elapsed, totalMin, isReturn) {
+            const ratio = elapsed / totalMin;
+            if (isReturn) {
+                if (ratio < 0.25) return "📍 Secteur Cruas";
+                if (ratio < 0.55) return "📍 Secteur Meysse";
+                if (ratio < 0.85) return "📍 Secteur Rochemaure / Ancône";
+                return "📍 Entrée Montélimar";
+            } else {
+                if (ratio < 0.25) return "📍 Sortie Montélimar / Ancône";
+                if (ratio < 0.55) return "📍 Secteur Rochemaure";
+                if (ratio < 0.85) return "📍 Secteur Meysse";
+                return "📍 Approche CNPE Cruas";
+            }
+        }
+
+        // Trouve le nom de la route depuis le GPS
         function getRoadNameAt(targetMinutes, apiSteps) {
-            if (!apiSteps || apiSteps.length === 0) return "Sur l'itinéraire";
-            
+            if (!apiSteps || apiSteps.length === 0) return "Route principale";
             const targetSeconds = targetMinutes * 60;
             let accumulated = 0;
             
             for (let step of apiSteps) {
                 accumulated += step.duration;
                 if (accumulated >= targetSeconds) {
-                    return step.name && step.name.trim() !== "" ? step.name : "Route principale (D86)";
+                    return step.name && step.name.trim() !== "" ? step.name : "Route principale";
                 }
             }
-            return apiSteps[apiSteps.length - 1].name || "Approche finale";
+            return apiSteps[apiSteps.length - 1].name || "Route principale";
         }
 
         async function fetchRoute() {
@@ -188,10 +204,9 @@
                 let totalMin = 0;
                 let distanceKm = 0;
                 let delayMin = 0;
-                let apiSteps = []; // Stockera les vrais noms de rues avec leur durée
+                let apiSteps = []; 
 
                 if (tomtomApiKey !== "") {
-                    // TomTom: On demande les instructions de navigation (instructionsType=text)
                     const url = `https://api.tomtom.com/routing/1/calculateRoute/${startLat},${startLon}:${endLat},${endLon}/json?key=${tomtomApiKey}&traffic=true&computeTravelTimeFor=all&instructionsType=text&language=fr-FR`;
                     const res = await fetch(url);
                     const data = await res.json();
@@ -202,15 +217,18 @@
                     const noTrafficMin = Math.ceil(summary.noTrafficTravelTimeInSeconds / 60);
                     delayMin = totalMin - noTrafficMin;
 
-                    // Extraction des vraies routes
+                    // Parse TomTom
                     if (data.routes[0].guidance && data.routes[0].guidance.instructions) {
-                        apiSteps = data.routes[0].guidance.instructions.map(inst => ({
-                            name: inst.street || "",
-                            duration: inst.travelTimeInSeconds || 0
-                        }));
+                        apiSteps = data.routes[0].guidance.instructions.map(inst => {
+                            let rName = inst.street || "";
+                            if (inst.roadNumbers && inst.roadNumbers.length > 0) {
+                                let ref = inst.roadNumbers[0];
+                                rName = rName ? `${ref} (${rName})` : ref;
+                            }
+                            return { name: rName, duration: inst.travelTimeInSeconds || 0 };
+                        });
                     }
                 } else {
-                    // OSRM: On demande le détail des étapes (steps=true)
                     const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=false&steps=true`;
                     const res = await fetch(url);
                     const data = await res.json();
@@ -219,12 +237,15 @@
                     distanceKm = (data.routes[0].distance / 1000).toFixed(1);
                     delayMin = 0; 
 
-                    // Extraction des vraies routes
+                    // Parse OSRM avec récupération du numéro de route (ex: D86)
                     if (data.routes[0].legs && data.routes[0].legs[0].steps) {
-                        apiSteps = data.routes[0].legs[0].steps.map(step => ({
-                            name: step.name || "",
-                            duration: step.duration || 0
-                        }));
+                        apiSteps = data.routes[0].legs[0].steps.map(step => {
+                            let rName = step.name || "";
+                            if (step.ref) { // On récupère le "D 86"
+                                rName = rName ? `${step.ref} (${rName})` : step.ref;
+                            }
+                            return { name: rName, duration: step.duration || 0 };
+                        });
                     }
                 }
 
@@ -255,6 +276,7 @@
                 </div>`;
 
             const nbEtapes = Math.floor(totalMin / 5);
+            let lastRoadName = "";
 
             for (let i = 1; i <= nbEtapes; i++) {
                 const elapsed = i * 5;
@@ -262,8 +284,18 @@
                 
                 const stepTime = new Date(now.getTime() + elapsed * 60000);
                 
-                // 🔥 La magie opère ici : on récupère la VRAIE rue à ce moment précis du trajet
-                const locationName = getRoadNameAt(elapsed, apiSteps);
+                // 1. On récupère le nom du secteur
+                const zone = getZoneName(elapsed, totalMin, isReturnTrip);
+
+                // 2. On récupère le vrai nom technique du GPS (ex: D86)
+                let currentRoadName = getRoadNameAt(elapsed, apiSteps);
+                let displayRoad = `🛣️ ${currentRoadName}`;
+                
+                // Si on est sur la même route qu'il y a 5 min
+                if (currentRoadName === lastRoadName) {
+                    displayRoad = `↪️ Toujours sur : ${currentRoadName}`;
+                }
+                lastRoadName = currentRoadName;
                 
                 let badge = "";
 
@@ -283,7 +315,8 @@
                 <div class="step">
                     <div class="step-time">${formatTime(stepTime)}</div>
                     <div class="step-info">
-                        <span class="step-name">📍 ${locationName}</span> 
+                        <span class="step-name">${zone}</span>
+                        <span class="step-road">${displayRoad}</span>
                         ${badge}
                     </div>
                 </div>`;
